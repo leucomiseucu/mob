@@ -114,7 +114,7 @@ RunService.RenderStepped:Connect(function()
     end
 end)
 
--- Snow FOV (Agora fixo no centro da tela)
+-- Snow FOV
 RunService.RenderStepped:Connect(function()
     if SNOW_FOV then
         if not snowCircle then
@@ -124,8 +124,8 @@ RunService.RenderStepped:Connect(function()
             snowCircle.Transparency = 0.5
             snowCircle.Filled = false
         end
-        local viewportSize = camera.ViewportSize
-        snowCircle.Position = Vector2.new(viewportSize.X/2, viewportSize.Y/2) -- Centro da tela
+        local mouse = LocalPlayer:GetMouse()
+        snowCircle.Position = Vector2.new(mouse.X, mouse.Y)
         snowCircle.Radius = FOV_RADIUS
         snowCircle.Visible = true
     elseif snowCircle then
@@ -180,7 +180,7 @@ local function createMenu()
     menuGui.ResetOnSpawn = false
 
     local panel = Instance.new("Frame", menuGui)
-    panel.Size = UDim2.new(0, 300, 0, 500) -- Aumentei pra caber o novo botão
+    panel.Size = UDim2.new(0, 300, 0, 500)
     panel.Position = UDim2.new(0.5, -150, 0.5, -250)
     panel.BackgroundColor3 = Color3.fromRGB(10, 10, 20)
     panel.BackgroundTransparency = 0.1
@@ -237,7 +237,6 @@ local function createMenu()
         button.MouseButton1Click:Connect(callback)
     end
 
-    -- Botões
     addButton("ESP", 70, function()
         ESP_ENABLED = not ESP_ENABLED
     end)
@@ -258,14 +257,41 @@ local function createMenu()
         FOV_RADIUS = FOV_RADIUS + 10
     end)
 
-    addButton("MUDAR COR FOV", 420, function()
-        if snowCircle then
-            snowCircle.Color = Color3.fromRGB(math.random(0,255), math.random(0,255), math.random(0,255))
+    -- Color Picker
+    local colorPickerLabel = Instance.new("TextLabel", panel)
+    colorPickerLabel.Size = UDim2.new(0, 260, 0, 20)
+    colorPickerLabel.Position = UDim2.new(0, 20, 0, 420)
+    colorPickerLabel.BackgroundTransparency = 1
+    colorPickerLabel.Text = "Mudar Cor do FOV"
+    colorPickerLabel.TextColor3 = Color3.fromRGB(0, 255, 200)
+    colorPickerLabel.Font = Enum.Font.SciFi
+    colorPickerLabel.TextSize = 18
+
+    local colorPicker = Instance.new("TextBox", panel)
+    colorPicker.Size = UDim2.new(0, 260, 0, 30)
+    colorPicker.Position = UDim2.new(0, 20, 0, 450)
+    colorPicker.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+    colorPicker.PlaceholderText = "Digite RGB: exemplo 255,0,0"
+    colorPicker.Text = ""
+    colorPicker.TextColor3 = Color3.fromRGB(255, 255, 255)
+    colorPicker.Font = Enum.Font.Gotham
+    colorPicker.TextSize = 16
+    Instance.new("UICorner", colorPicker).CornerRadius = UDim.new(0, 8)
+
+    colorPicker.FocusLost:Connect(function(enterPressed)
+        if enterPressed then
+            local text = colorPicker.Text
+            local r, g, b = text:match("(%d+),%s*(%d+),%s*(%d+)")
+            if r and g and b then
+                r, g, b = tonumber(r), tonumber(g), tonumber(b)
+                if snowCircle then
+                    snowCircle.Color = Color3.fromRGB(r, g, b)
+                end
+            end
         end
     end)
 end
 
--- GUI Minimizado
 local function createMinimizedGui()
     minimizedGui = Instance.new("ScreenGui", LocalPlayer.PlayerGui)
     minimizedGui.Name = "MinimizedMenu"
