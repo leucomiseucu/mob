@@ -1,4 +1,4 @@
--- Serviços
+-- SERVIÇOS
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
@@ -7,7 +7,7 @@ local camera = workspace.CurrentCamera
 
 repeat wait() until LocalPlayer:FindFirstChild("PlayerGui")
 
--- Variáveis
+-- VARIÁVEIS
 local ESP_ENABLED = false
 local AIMBOT_ENABLED = false
 local SNOW_FOV = false
@@ -20,16 +20,17 @@ local menuGui
 local minimizedGui
 local dragging, dragInput, dragStart, startPos
 local snowCircle
+local magicBullet = false
 
--- Funções auxiliares
+-- FUNÇÕES
 local function getClosestPlayer()
     local closest, dist = nil, math.huge
     for _, player in pairs(Players:GetPlayers()) do
         if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("Head") then
             local pos, onScreen = camera:WorldToViewportPoint(player.Character.Head.Position)
             if onScreen then
-                local touch = UserInputService:GetMouseLocation()
-                local distance = (Vector2.new(touch.X, touch.Y) - Vector2.new(pos.X, pos.Y)).Magnitude
+                local mouse = LocalPlayer:GetMouse()
+                local distance = (Vector2.new(mouse.X, mouse.Y) - Vector2.new(pos.X, pos.Y)).Magnitude
                 if distance < dist and distance <= FOV_RADIUS then
                     closest = player
                     dist = distance
@@ -40,13 +41,24 @@ local function getClosestPlayer()
     return closest
 end
 
--- Aimbot MOBILE
+-- AIMBOT
 RunService.RenderStepped:Connect(function()
     if AIMBOT_ENABLED and shooting then
         local target = getClosestPlayer()
         if target and target.Character and target.Character:FindFirstChild("Head") then
-            if not target.Team or target.Team ~= LocalPlayer.Team then
+            if target.Team ~= LocalPlayer.Team then
                 camera.CFrame = CFrame.new(camera.CFrame.Position, target.Character.Head.Position)
+            end
+        end
+    end
+end)
+
+-- MAGIC BULLET (universal)
+RunService.RenderStepped:Connect(function()
+    if magicBullet then
+        for _, obj in ipairs(workspace:GetDescendants()) do
+            if obj:IsA("BasePart") and not obj:IsDescendantOf(LocalPlayer.Character) then
+                obj.CanCollide = false
             end
         end
     end
@@ -114,7 +126,7 @@ RunService.RenderStepped:Connect(function()
     end
 end)
 
--- Snow FOV
+-- FOV VISUAL
 RunService.RenderStepped:Connect(function()
     if SNOW_FOV then
         if not snowCircle then
@@ -124,8 +136,8 @@ RunService.RenderStepped:Connect(function()
             snowCircle.Transparency = 0.5
             snowCircle.Filled = false
         end
-        local touch = UserInputService:GetMouseLocation()
-        snowCircle.Position = Vector2.new(touch.X, touch.Y)
+        local mouse = LocalPlayer:GetMouse()
+        snowCircle.Position = Vector2.new(mouse.X, mouse.Y)
         snowCircle.Radius = FOV_RADIUS
         snowCircle.Visible = true
     elseif snowCircle then
@@ -133,7 +145,7 @@ RunService.RenderStepped:Connect(function()
     end
 end)
 
--- NoClip
+-- NOCLIP
 RunService.Stepped:Connect(function()
     if noclip and LocalPlayer.Character then
         for _, part in pairs(LocalPlayer.Character:GetDescendants()) do
@@ -144,10 +156,10 @@ RunService.Stepped:Connect(function()
     end
 end)
 
--- Função para arrastar (draggable)
+-- FUNÇÃO DRAGGABLE
 local function makeDraggable(frame)
     frame.InputBegan:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.Touch or input.UserInputType == Enum.UserInputType.MouseButton1 then
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
             dragging = true
             dragStart = input.Position
             startPos = frame.Position
@@ -160,7 +172,7 @@ local function makeDraggable(frame)
     end)
 
     frame.InputChanged:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.Touch or input.UserInputType == Enum.UserInputType.MouseMovement then
+        if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
             dragInput = input
         end
     end)
@@ -173,15 +185,15 @@ local function makeDraggable(frame)
     end)
 end
 
--- Menu
+-- MENU
 local function createMenu()
     menuGui = Instance.new("ScreenGui", LocalPlayer.PlayerGui)
     menuGui.Name = "FuturisticMenu"
     menuGui.ResetOnSpawn = false
 
     local panel = Instance.new("Frame", menuGui)
-    panel.Size = UDim2.new(0, 300, 0, 500)
-    panel.Position = UDim2.new(0.5, -150, 0.5, -250)
+    panel.Size = UDim2.new(0, 300, 0, 540)
+    panel.Position = UDim2.new(0.5, -150, 0.5, -270)
     panel.BackgroundColor3 = Color3.fromRGB(10, 10, 20)
     panel.BackgroundTransparency = 0.1
     panel.BorderSizePixel = 0
@@ -240,40 +252,7 @@ local function createMenu()
     addButton("SNOW FOV", 210, function() SNOW_FOV = not SNOW_FOV end)
     addButton("NOCLIP", 280, function() noclip = not noclip end)
     addButton("AUMENTAR FOV", 350, function() FOV_RADIUS = FOV_RADIUS + 10 end)
-
-    -- Color Picker para FOV
-    local colorPickerLabel = Instance.new("TextLabel", panel)
-    colorPickerLabel.Size = UDim2.new(0, 260, 0, 20)
-    colorPickerLabel.Position = UDim2.new(0, 20, 0, 420)
-    colorPickerLabel.BackgroundTransparency = 1
-    colorPickerLabel.Text = "Mudar Cor do FOV"
-    colorPickerLabel.TextColor3 = Color3.fromRGB(0, 255, 200)
-    colorPickerLabel.Font = Enum.Font.SciFi
-    colorPickerLabel.TextSize = 18
-
-    local colorPicker = Instance.new("TextBox", panel)
-    colorPicker.Size = UDim2.new(0, 260, 0, 30)
-    colorPicker.Position = UDim2.new(0, 20, 0, 450)
-    colorPicker.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
-    colorPicker.PlaceholderText = "Digite RGB: exemplo 255,0,0"
-    colorPicker.Text = ""
-    colorPicker.TextColor3 = Color3.fromRGB(255, 255, 255)
-    colorPicker.Font = Enum.Font.Gotham
-    colorPicker.TextSize = 16
-    Instance.new("UICorner", colorPicker).CornerRadius = UDim.new(0, 8)
-
-    colorPicker.FocusLost:Connect(function(enterPressed)
-        if enterPressed then
-            local text = colorPicker.Text
-            local r, g, b = text:match("(%d+),%s*(%d+),%s*(%d+)")
-            if r and g and b then
-                r, g, b = tonumber(r), tonumber(g), tonumber(b)
-                if snowCircle then
-                    snowCircle.Color = Color3.fromRGB(r, g, b)
-                end
-            end
-        end
-    end)
+    addButton("BALA MAGICA", 420, function() magicBullet = not magicBullet end)
 end
 
 local function createMinimizedGui()
@@ -289,6 +268,7 @@ local function createMinimizedGui()
     bar.TextColor3 = Color3.fromRGB(255, 255, 255)
     bar.Font = Enum.Font.GothamBold
     bar.TextSize = 24
+
     Instance.new("UICorner", bar).CornerRadius = UDim.new(0, 10)
 
     makeDraggable(bar)
@@ -299,6 +279,17 @@ local function createMinimizedGui()
     end)
 end
 
--- Inicializar o Menu
-createMenu()
-createMinimizedGui()
+-- INICIAR MENU
+defer(function()
+    createMenu()
+    createMinimizedGui()
+end)
+
+-- SHOOTING MOBILE
+UserInputService.TouchStarted:Connect(function()
+    shooting = true
+end)
+
+UserInputService.TouchEnded:Connect(function()
+    shooting = false
+end)
