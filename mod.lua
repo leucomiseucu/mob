@@ -17,8 +17,8 @@ local FOV_RADIUS = 80
 local noclip = false
 local shooting = false
 local menuGui
+local minimizedGui
 local dragging, dragInput, dragStart, startPos
-local currentTab = "main"
 
 -- Funções auxiliares
 local function getClosestPlayer()
@@ -58,19 +58,30 @@ local function createESP(player)
     box.Thickness = 2
     box.Transparency = 1
     box.Filled = false
-    ESP_OBJECTS[player] = box
+
+    local healthText = Drawing.new("Text")
+    healthText.Color = Color3.fromRGB(0, 255, 0)
+    healthText.Size = 16
+    healthText.Center = true
+    healthText.Outline = true
+
+    ESP_OBJECTS[player] = {Box = box, Health = healthText}
 end
 
 local function removeESP(player)
     if ESP_OBJECTS[player] then
-        ESP_OBJECTS[player]:Remove()
+        ESP_OBJECTS[player].Box:Remove()
+        ESP_OBJECTS[player].Health:Remove()
         ESP_OBJECTS[player] = nil
     end
 end
 
 RunService.RenderStepped:Connect(function()
     if not ESP_ENABLED then
-        for _, box in pairs(ESP_OBJECTS) do box.Visible = false end
+        for _, obj in pairs(ESP_OBJECTS) do
+            obj.Box.Visible = false
+            obj.Health.Visible = false
+        end
         return
     end
 
@@ -84,11 +95,15 @@ RunService.RenderStepped:Connect(function()
                 local head = player.Character.Head
                 local pos, visible = camera:WorldToViewportPoint(head.Position)
                 local size = (camera:WorldToViewportPoint(head.Position + Vector3.new(2, 3, 0)) - camera:WorldToViewportPoint(head.Position - Vector3.new(2, 3, 0))).Magnitude
-                local box = ESP_OBJECTS[player]
-                box.Size = Vector2.new(size, size * 1.5)
-                box.Position = Vector2.new(pos.X - box.Size.X/2, pos.Y - box.Size.Y/2)
-                box.Color = ESP_COLOR
-                box.Visible = visible
+                local obj = ESP_OBJECTS[player]
+                obj.Box.Size = Vector2.new(size, size * 1.5)
+                obj.Box.Position = Vector2.new(pos.X - obj.Box.Size.X/2, pos.Y - obj.Box.Size.Y/2)
+                obj.Box.Color = ESP_COLOR
+                obj.Box.Visible = visible
+
+                obj.Health.Position = Vector2.new(pos.X, pos.Y - obj.Box.Size.Y/2 - 10)
+                obj.Health.Text = math.floor(humanoid.Health) .. " HP"
+                obj.Health.Visible = visible
             else
                 removeESP(player)
             end
@@ -129,137 +144,147 @@ RunService.Stepped:Connect(function()
     end
 end)
 
--- Menu
-local function dragify(frame)
-    local dragToggle = nil
-    local dragInput = nil
-    local dragStart = nil
-    local startPos = nil
-
-    local function update(input)
-        local delta = input.Position - dragStart
-        frame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
-    end
-
+-- Função para fazer draggable
+local function makeDraggable(frame)
     frame.InputBegan:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 then
-            dragToggle = true
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            dragging = true
             dragStart = input.Position
             startPos = frame.Position
-
             input.Changed:Connect(function()
                 if input.UserInputState == Enum.UserInputState.End then
-                    dragToggle = false
+                    dragging = false
                 end
             end)
         end
     end)
 
     frame.InputChanged:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseMovement then
+        if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
             dragInput = input
         end
     end)
 
-    RunService.Heartbeat:Connect(function()
-        if dragToggle and dragInput then
-            update(dragInput)
+    RunService.RenderStepped:Connect(function()
+        if dragging and dragInput then
+            local delta = dragInput.Position - dragStart
+            frame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
         end
     end)
 end
 
+-- Criar o Menu Futurista
 local function createMenu()
     menuGui = Instance.new("ScreenGui", LocalPlayer.PlayerGui)
     menuGui.Name = "FuturisticMenu"
     menuGui.ResetOnSpawn = false
 
-    local mainFrame = Instance.new("Frame", menuGui)
-    mainFrame.Size = UDim2.new(0, 320, 0, 400)
-    mainFrame.Position = UDim2.new(0.5, -160, 0.5, -200)
-    mainFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 40)
-    mainFrame.BorderSizePixel = 0
-    Instance.new("UICorner", mainFrame).CornerRadius = UDim.new(0, 15)
+    local panel = Instance.new("Frame", menuGui)
+    panel.Size = UDim2.new(0, 300, 0, 450)
+    panel.Position = UDim2.new(0.5, -150, 0.5, -225)
+    panel.BackgroundColor3 = Color3.fromRGB(10, 10, 20)
+    panel.BackgroundTransparency = 0.1
+    panel.BorderSizePixel = 0
+    makeDraggable(panel)
 
-    local tabFolder = Instance.new("Frame", mainFrame)
-    tabFolder.Size = UDim2.new(1, 0, 1, 0)
-    tabFolder.Position = UDim2.new(0, 0, 0, 0)
-    tabFolder.BackgroundTransparency = 1
+    Instance.new("UICorner", panel).CornerRadius = UDim.new(0, 15)
 
-    local mainTab = Instance.new("Frame", tabFolder)
-    mainTab.Name = "Main"
-    mainTab.Size = UDim2.new(1, 0, 1, 0)
-    mainTab.BackgroundTransparency = 1
+    -- Bordas RGB
+    local stroke = Instance.new("UIStroke", panel)
+    stroke.Thickness = 2
 
-    local creditsTab = Instance.new("Frame", tabFolder)
-    creditsTab.Name = "Credits"
-    creditsTab.Size = UDim2.new(1, 0, 1, 0)
-    creditsTab.BackgroundTransparency = 1
-    creditsTab.Visible = false
+    RunService.RenderStepped:Connect(function()
+        local t = tick() * 100
+        stroke.Color = Color3.fromHSV((t % 255) / 255, 1, 1)
+    end)
 
-    local function switchTab(tabName)
-        mainTab.Visible = (tabName == "main")
-        creditsTab.Visible = (tabName == "credits")
-    end
+    -- Botão de minimizar
+    local minimizeButton = Instance.new("TextButton", panel)
+    minimizeButton.Size = UDim2.new(0, 40, 0, 40)
+    minimizeButton.Position = UDim2.new(1, -50, 0, 10)
+    minimizeButton.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+    minimizeButton.Text = "_"
+    minimizeButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+    minimizeButton.Font = Enum.Font.GothamBold
+    minimizeButton.TextSize = 22
+    Instance.new("UICorner", minimizeButton).CornerRadius = UDim.new(0, 8)
 
-    local function addButton(parent, text, posY, callback)
-        local button = Instance.new("TextButton", parent)
-        button.Size = UDim2.new(0, 260, 0, 40)
-        button.Position = UDim2.new(0, 30, 0, posY)
-        button.BackgroundColor3 = Color3.fromRGB(30, 30, 60)
+    minimizeButton.MouseButton1Click:Connect(function()
+        menuGui.Enabled = false
+        minimizedGui.Enabled = true
+    end)
+
+    local title = Instance.new("TextLabel", panel)
+    title.Size = UDim2.new(1, 0, 0, 50)
+    title.Position = UDim2.new(0, 0, 0, 0)
+    title.BackgroundTransparency = 1
+    title.Text = "☣ CEIFADOR V2 ☣"
+    title.TextColor3 = Color3.fromRGB(0, 255, 200)
+    title.Font = Enum.Font.SciFi
+    title.TextSize = 28
+
+    local function addButton(text, posY, callback)
+        local button = Instance.new("TextButton", panel)
+        button.Size = UDim2.new(0, 260, 0, 50)
+        button.Position = UDim2.new(0, 20, 0, posY)
+        button.BackgroundColor3 = Color3.fromRGB(20, 20, 40)
         button.Text = text
-        button.TextColor3 = Color3.fromRGB(200, 200, 255)
-        button.Font = Enum.Font.GothamBold
-        button.TextSize = 18
-        Instance.new("UICorner", button).CornerRadius = UDim.new(0, 8)
+        button.TextColor3 = Color3.fromRGB(0, 255, 200)
+        button.Font = Enum.Font.SciFi
+        button.TextSize = 22
+        Instance.new("UICorner", button).CornerRadius = UDim.new(0, 10)
 
         button.MouseButton1Click:Connect(callback)
     end
 
-    addButton(mainTab, "ESP", 20, function() ESP_ENABLED = not ESP_ENABLED end)
-    addButton(mainTab, "AIMBOT", 70, function() AIMBOT_ENABLED = not AIMBOT_ENABLED end)
-    addButton(mainTab, "SNOW FOV", 120, function() SNOW_FOV = not SNOW_FOV end)
-    addButton(mainTab, "NOCLIP", 170, function() noclip = not noclip end)
-
-    local fovSlider = Instance.new("TextLabel", mainTab)
-    fovSlider.Size = UDim2.new(0, 280, 0, 40)
-    fovSlider.Position = UDim2.new(0, 20, 0, 220)
-    fovSlider.BackgroundTransparency = 1
-    fovSlider.Text = "FOV: " .. FOV_RADIUS
-    fovSlider.TextColor3 = Color3.fromRGB(0, 200, 255)
-    fovSlider.Font = Enum.Font.Gotham
-    fovSlider.TextSize = 18
-
-    addButton(mainTab, "CRÉDITOS", 270, function() switchTab("credits") end)
-
-    local creditsText = Instance.new("TextLabel", creditsTab)
-    creditsText.Size = UDim2.new(1, 0, 1, 0)
-    creditsText.TextWrapped = true
-    creditsText.BackgroundTransparency = 1
-    creditsText.Text = "9M - 16M\nFeito por @dzsists - Ceifador o melhor de todos\nQuer comprar hacks personalizáveis por apenas 6$?\nVem pv @dzsists!"
-    creditsText.TextColor3 = Color3.fromRGB(255, 255, 255)
-    creditsText.Font = Enum.Font.GothamBold
-    creditsText.TextSize = 18
-
-    -- Botão Flutuante 🔥
-    local toggleButton = Instance.new("TextButton", menuGui)
-    toggleButton.Size = UDim2.new(0, 50, 0, 50)
-    toggleButton.Position = UDim2.new(0, 100, 0, 100)
-    toggleButton.BackgroundColor3 = Color3.fromRGB(128, 0, 128)
-    toggleButton.Text = "🔥"
-    toggleButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-    toggleButton.Font = Enum.Font.GothamBlack
-    toggleButton.TextSize = 30
-    Instance.new("UICorner", toggleButton).CornerRadius = UDim.new(1, 0)
-
-    toggleButton.MouseButton1Click:Connect(function()
-        menuGui.Enabled = not menuGui.Enabled
+    addButton("ESP", 70, function()
+        ESP_ENABLED = not ESP_ENABLED
     end)
 
-    dragify(toggleButton)
+    addButton("AIMBOT", 140, function()
+        AIMBOT_ENABLED = not AIMBOT_ENABLED
+    end)
+
+    addButton("SNOW FOV", 210, function()
+        SNOW_FOV = not SNOW_FOV
+    end)
+
+    addButton("NOCLIP", 280, function()
+        noclip = not noclip
+    end)
+
+    addButton("AUMENTAR FOV", 350, function()
+        FOV_RADIUS = FOV_RADIUS + 10
+    end)
 end
 
--- Inicializar
+local function createMinimizedGui()
+    minimizedGui = Instance.new("ScreenGui", LocalPlayer.PlayerGui)
+    minimizedGui.Name = "MinimizedMenu"
+    minimizedGui.Enabled = false
+
+    local bar = Instance.new("TextButton", minimizedGui)
+    bar.Size = UDim2.new(0, 80, 0, 30)
+    bar.Position = UDim2.new(0.5, -40, 0.5, -15)
+    bar.BackgroundColor3 = Color3.fromRGB(40, 0, 80)
+    bar.Text = "+"
+    bar.TextColor3 = Color3.fromRGB(255, 255, 255)
+    bar.Font = Enum.Font.GothamBold
+    bar.TextSize = 24
+
+    Instance.new("UICorner", bar).CornerRadius = UDim.new(0, 10)
+
+    makeDraggable(bar)
+
+    bar.MouseButton1Click:Connect(function()
+        minimizedGui.Enabled = false
+        menuGui.Enabled = true
+    end)
+end
+
+-- Abrir o menu diretamente
 createMenu()
+createMinimizedGui()
 
 -- Mobile shooting
 UserInputService.TouchStarted:Connect(function()
