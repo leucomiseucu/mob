@@ -17,7 +17,9 @@ local FOV_RADIUS = 80
 local noclip = false
 local shooting = false
 local menuGui
+local minimizedGui
 local dragging, dragInput, dragStart, startPos
+local snowCircle
 
 -- Funções auxiliares
 local function getClosestPlayer()
@@ -112,19 +114,18 @@ RunService.RenderStepped:Connect(function()
     end
 end)
 
--- Snow FOV
-local snowCircle
+-- Snow FOV (Agora fixo no centro da tela)
 RunService.RenderStepped:Connect(function()
     if SNOW_FOV then
         if not snowCircle then
             snowCircle = Drawing.new("Circle")
-            snowCircle.Color = ESP_COLOR
+            snowCircle.Color = Color3.fromRGB(0, 200, 255)
             snowCircle.Thickness = 2
             snowCircle.Transparency = 0.5
             snowCircle.Filled = false
         end
-        local mouse = LocalPlayer:GetMouse()
-        snowCircle.Position = Vector2.new(mouse.X, mouse.Y)
+        local viewportSize = camera.ViewportSize
+        snowCircle.Position = Vector2.new(viewportSize.X/2, viewportSize.Y/2) -- Centro da tela
         snowCircle.Radius = FOV_RADIUS
         snowCircle.Visible = true
     elseif snowCircle then
@@ -143,91 +144,161 @@ RunService.Stepped:Connect(function()
     end
 end)
 
--- Criar Menu
-local function createMenu()
-    menuGui = Instance.new("ScreenGui", LocalPlayer.PlayerGui)
-    menuGui.Name = "MobileMenu"
-    menuGui.ResetOnSpawn = false
-
-    local mainFrame = Instance.new("Frame", menuGui)
-    mainFrame.Size = UDim2.new(0, 180, 0, 300)
-    mainFrame.Position = UDim2.new(0, 10, 0.3, 0)
-    mainFrame.BackgroundColor3 = Color3.fromRGB(15, 15, 25)
-    mainFrame.BorderSizePixel = 0
-    mainFrame.Visible = false
-
-    Instance.new("UICorner", mainFrame).CornerRadius = UDim.new(0, 10)
-
-    local menuButton = Instance.new("TextButton", menuGui)
-    menuButton.Size = UDim2.new(0, 60, 0, 30)
-    menuButton.Position = UDim2.new(0, 10, 0.25, 0)
-    menuButton.Text = "Menu"
-    menuButton.BackgroundColor3 = Color3.fromRGB(20, 20, 60)
-    menuButton.TextColor3 = Color3.new(1,1,1)
-    Instance.new("UICorner", menuButton).CornerRadius = UDim.new(0, 8)
-
-    menuButton.MouseButton1Click:Connect(function()
-        mainFrame.Visible = not mainFrame.Visible
+-- Função para fazer draggable
+local function makeDraggable(frame)
+    frame.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            dragging = true
+            dragStart = input.Position
+            startPos = frame.Position
+            input.Changed:Connect(function()
+                if input.UserInputState == Enum.UserInputState.End then
+                    dragging = false
+                end
+            end)
+        end
     end)
 
+    frame.InputChanged:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+            dragInput = input
+        end
+    end)
+
+    RunService.RenderStepped:Connect(function()
+        if dragging and dragInput then
+            local delta = dragInput.Position - dragStart
+            frame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+        end
+    end)
+end
+
+-- Criar o Menu Futurista
+local function createMenu()
+    menuGui = Instance.new("ScreenGui", LocalPlayer.PlayerGui)
+    menuGui.Name = "FuturisticMenu"
+    menuGui.ResetOnSpawn = false
+
+    local panel = Instance.new("Frame", menuGui)
+    panel.Size = UDim2.new(0, 300, 0, 500) -- Aumentei pra caber o novo botão
+    panel.Position = UDim2.new(0.5, -150, 0.5, -250)
+    panel.BackgroundColor3 = Color3.fromRGB(10, 10, 20)
+    panel.BackgroundTransparency = 0.1
+    panel.BorderSizePixel = 0
+    makeDraggable(panel)
+
+    Instance.new("UICorner", panel).CornerRadius = UDim.new(0, 15)
+
+    -- Bordas RGB
+    local stroke = Instance.new("UIStroke", panel)
+    stroke.Thickness = 2
+
+    RunService.RenderStepped:Connect(function()
+        local t = tick() * 100
+        stroke.Color = Color3.fromHSV((t % 255) / 255, 1, 1)
+    end)
+
+    -- Botão de minimizar
+    local minimizeButton = Instance.new("TextButton", panel)
+    minimizeButton.Size = UDim2.new(0, 40, 0, 40)
+    minimizeButton.Position = UDim2.new(1, -50, 0, 10)
+    minimizeButton.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+    minimizeButton.Text = "_"
+    minimizeButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+    minimizeButton.Font = Enum.Font.GothamBold
+    minimizeButton.TextSize = 22
+    Instance.new("UICorner", minimizeButton).CornerRadius = UDim.new(0, 8)
+
+    minimizeButton.MouseButton1Click:Connect(function()
+        menuGui.Enabled = false
+        minimizedGui.Enabled = true
+    end)
+
+    local title = Instance.new("TextLabel", panel)
+    title.Size = UDim2.new(1, 0, 0, 50)
+    title.Position = UDim2.new(0, 0, 0, 0)
+    title.BackgroundTransparency = 1
+    title.Text = "☣ CEIFADOR V2 ☣"
+    title.TextColor3 = Color3.fromRGB(0, 255, 200)
+    title.Font = Enum.Font.SciFi
+    title.TextSize = 28
+
     local function addButton(text, posY, callback)
-        local button = Instance.new("TextButton", mainFrame)
-        button.Size = UDim2.new(0.9, 0, 0, 40)
-        button.Position = UDim2.new(0.05, 0, 0, posY)
-        button.BackgroundColor3 = Color3.fromRGB(30, 30, 50)
+        local button = Instance.new("TextButton", panel)
+        button.Size = UDim2.new(0, 260, 0, 50)
+        button.Position = UDim2.new(0, 20, 0, posY)
+        button.BackgroundColor3 = Color3.fromRGB(20, 20, 40)
         button.Text = text
-        button.TextColor3 = Color3.new(0,1,1)
-        button.Font = Enum.Font.GothamBold
-        button.TextSize = 18
-        Instance.new("UICorner", button).CornerRadius = UDim.new(0, 8)
+        button.TextColor3 = Color3.fromRGB(0, 255, 200)
+        button.Font = Enum.Font.SciFi
+        button.TextSize = 22
+        Instance.new("UICorner", button).CornerRadius = UDim.new(0, 10)
 
         button.MouseButton1Click:Connect(callback)
     end
 
-    addButton("ESP", 10, function()
+    -- Botões
+    addButton("ESP", 70, function()
         ESP_ENABLED = not ESP_ENABLED
     end)
 
-    addButton("AIMBOT", 60, function()
+    addButton("AIMBOT", 140, function()
         AIMBOT_ENABLED = not AIMBOT_ENABLED
     end)
 
-    addButton("SNOW FOV", 110, function()
+    addButton("SNOW FOV", 210, function()
         SNOW_FOV = not SNOW_FOV
     end)
 
-    addButton("NOCLIP", 160, function()
+    addButton("NOCLIP", 280, function()
         noclip = not noclip
     end)
 
-    addButton("AUMENTAR FOV", 210, function()
+    addButton("AUMENTAR FOV", 350, function()
         FOV_RADIUS = FOV_RADIUS + 10
     end)
 
-    local colorPicker = Instance.new("TextButton", mainFrame)
-    colorPicker.Size = UDim2.new(0.9, 0, 0, 40)
-    colorPicker.Position = UDim2.new(0.05, 0, 0, 260)
-    colorPicker.BackgroundColor3 = ESP_COLOR
-    colorPicker.Text = "Mudar Cor FOV"
-    colorPicker.TextColor3 = Color3.new(1,1,1)
-    colorPicker.Font = Enum.Font.Gotham
-    colorPicker.TextSize = 16
-    Instance.new("UICorner", colorPicker).CornerRadius = UDim.new(0,8)
-
-    colorPicker.MouseButton1Click:Connect(function()
-        ESP_COLOR = Color3.fromHSV(math.random(), 1, 1)
-        if snowCircle then snowCircle.Color = ESP_COLOR end
-        colorPicker.BackgroundColor3 = ESP_COLOR
+    addButton("MUDAR COR FOV", 420, function()
+        if snowCircle then
+            snowCircle.Color = Color3.fromRGB(math.random(0,255), math.random(0,255), math.random(0,255))
+        end
     end)
 end
 
--- Disparo Mobile
+-- GUI Minimizado
+local function createMinimizedGui()
+    minimizedGui = Instance.new("ScreenGui", LocalPlayer.PlayerGui)
+    minimizedGui.Name = "MinimizedMenu"
+    minimizedGui.Enabled = false
+
+    local bar = Instance.new("TextButton", minimizedGui)
+    bar.Size = UDim2.new(0, 80, 0, 30)
+    bar.Position = UDim2.new(0.5, -40, 0.5, -15)
+    bar.BackgroundColor3 = Color3.fromRGB(40, 0, 80)
+    bar.Text = "+"
+    bar.TextColor3 = Color3.fromRGB(255, 255, 255)
+    bar.Font = Enum.Font.GothamBold
+    bar.TextSize = 24
+
+    Instance.new("UICorner", bar).CornerRadius = UDim.new(0, 10)
+
+    makeDraggable(bar)
+
+    bar.MouseButton1Click:Connect(function()
+        minimizedGui.Enabled = false
+        menuGui.Enabled = true
+    end)
+end
+
+-- Abrir o menu diretamente
+createMenu()
+createMinimizedGui()
+
+-- Mobile shooting
 UserInputService.TouchStarted:Connect(function()
     shooting = true
 end)
+
 UserInputService.TouchEnded:Connect(function()
     shooting = false
 end)
-
--- Rodar tudo
-createMenu()
