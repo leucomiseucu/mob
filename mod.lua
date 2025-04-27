@@ -1,10 +1,76 @@
 -- Dependências
 local UserInputService = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
+local Players = game:GetService("Players")
 
 -- Variáveis Globais
 local ESP_COLOR = Color3.fromRGB(255, 0, 0)
 local FOV_RADIUS = 50
 local snowCircle = nil
+local showFov = false
+local showESP = false
+local espObjects = {}
+
+-- Função para criar o FOV
+function createFOV()
+    if snowCircle then snowCircle:Destroy() end
+
+    snowCircle = Drawing.new("Circle")
+    snowCircle.Color = ESP_COLOR
+    snowCircle.Thickness = 2
+    snowCircle.Filled = false
+    snowCircle.Radius = FOV_RADIUS
+    snowCircle.Visible = true
+end
+
+-- Função para atualizar o FOV a cada frame
+RunService.RenderStepped:Connect(function()
+    if snowCircle and showFov then
+        local mouse = UserInputService:GetMouseLocation()
+        snowCircle.Position = Vector2.new(mouse.X, mouse.Y)
+        snowCircle.Radius = FOV_RADIUS
+        snowCircle.Color = ESP_COLOR
+        snowCircle.Visible = true
+    elseif snowCircle then
+        snowCircle.Visible = false
+    end
+end)
+
+-- Função para criar ESP
+function createESP(player)
+    if player == Players.LocalPlayer then return end
+    local espBox = Drawing.new("Square")
+    espBox.Color = ESP_COLOR
+    espBox.Thickness = 2
+    espBox.Filled = false
+    espObjects[player] = espBox
+
+    RunService.RenderStepped:Connect(function()
+        if not showESP or not player.Character or not player.Character:FindFirstChild("HumanoidRootPart") then
+            espBox.Visible = false
+            return
+        end
+
+        local hrp = player.Character.HumanoidRootPart
+        local screenPos, onScreen = workspace.CurrentCamera:WorldToViewportPoint(hrp.Position)
+        if onScreen then
+            espBox.Size = Vector2.new(50, 50)
+            espBox.Position = Vector2.new(screenPos.X - 25, screenPos.Y - 25)
+            espBox.Color = ESP_COLOR
+            espBox.Visible = true
+        else
+            espBox.Visible = false
+        end
+    end)
+end
+
+-- Função para remover ESP
+function removeESP()
+    for _, box in pairs(espObjects) do
+        box:Remove()
+    end
+    espObjects = {}
+end
 
 -- Função para criar o menu
 function createMenu()
@@ -25,6 +91,55 @@ function createMenu()
     title.Font = Enum.Font.GothamBold
     title.TextSize = 24
     title.TextXAlignment = Enum.TextXAlignment.Left
+
+    -- Botão Show FOV
+    local fovButton = Instance.new("TextButton", panel)
+    fovButton.Size = UDim2.new(0, 260, 0, 40)
+    fovButton.Position = UDim2.new(0, 20, 0, 80)
+    fovButton.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+    fovButton.Text = "Show FOV"
+    fovButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+    fovButton.Font = Enum.Font.Gotham
+    fovButton.TextSize = 18
+    Instance.new("UICorner", fovButton).CornerRadius = UDim.new(0, 8)
+
+    fovButton.MouseButton1Click:Connect(function()
+        showFov = not showFov
+        if showFov then
+            fovButton.Text = "Hide FOV"
+            createFOV()
+        else
+            fovButton.Text = "Show FOV"
+            if snowCircle then
+                snowCircle.Visible = false
+            end
+        end
+    end)
+
+    -- Botão Show ESP
+    local espButton = Instance.new("TextButton", panel)
+    espButton.Size = UDim2.new(0, 260, 0, 40)
+    espButton.Position = UDim2.new(0, 20, 0, 130)
+    espButton.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+    espButton.Text = "Show ESP"
+    espButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+    espButton.Font = Enum.Font.Gotham
+    espButton.TextSize = 18
+    Instance.new("UICorner", espButton).CornerRadius = UDim.new(0, 8)
+
+    espButton.MouseButton1Click:Connect(function()
+        showESP = not showESP
+        if showESP then
+            espButton.Text = "Hide ESP"
+            for _, player in pairs(Players:GetPlayers()) do
+                createESP(player)
+            end
+            Players.PlayerAdded:Connect(createESP)
+        else
+            espButton.Text = "Show ESP"
+            removeESP()
+        end
+    end)
 
     -- FOV Label
     local fovLabel = Instance.new("TextLabel", panel)
@@ -105,6 +220,9 @@ function createMenu()
         ESP_COLOR = Color3.fromRGB(r, g, b)
         if snowCircle then
             snowCircle.Color = ESP_COLOR
+        end
+        for _, box in pairs(espObjects) do
+            box.Color = ESP_COLOR
         end
         colorPicker.BackgroundColor3 = ESP_COLOR
     end)
