@@ -1,124 +1,118 @@
 -- Carregar a biblioteca Orion UI
 local OrionLib = loadstring(game:HttpGet('https://raw.githubusercontent.com/jensonhirst/Orion/main/source'))()
 
--- Variáveis Globais
-local player = game.Players.LocalPlayer
-local camera = workspace.CurrentCamera
+-- Variáveis iniciais
+local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
-local UserInputService = game:GetService("UserInputService")
-local aimbotEnabled = false
-local espEnabled = false
-local magicBulletEnabled = false
-local wallhackEnabled = false
+local LocalPlayer = Players.LocalPlayer
+local camera = workspace.CurrentCamera
+
+local AIMBOT_ENABLED = false
+local ESP_ENABLED = false
+local SNOW_FOV = false
+local noclip = false
+local shooting = false
 local ESP_OBJECTS = {}
+local ESP_COLOR = Color3.fromRGB(255, 0, 0)
+local FOV_RADIUS = 100
 
--- FOV Circle
-local FOV_RADIUS = 80
-local FOV_CIRCLE = nil
-
--- Funções Aimbot
+-- Funções
 local function getClosestPlayer()
     local closestPlayer = nil
     local shortestDistance = math.huge
-    for _, v in pairs(game.Players:GetPlayers()) do
-        if v ~= player and v.Character and v.Character:FindFirstChild("Head") then
-            local pos, onScreen = camera:WorldToViewportPoint(v.Character.Head.Position)
-            if onScreen then
-                local mousePos = UserInputService:GetMouseLocation()
-                local distance = (Vector2.new(mousePos.X, mousePos.Y) - Vector2.new(pos.X, pos.Y)).Magnitude
-                if distance < shortestDistance and distance < FOV_RADIUS then
-                    shortestDistance = distance
-                    closestPlayer = v
-                end
+    local mouse = LocalPlayer:GetMouse()
+    for _, player in pairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("Head") then
+            local pos = camera:WorldToViewportPoint(player.Character.Head.Position)
+            local magnitude = (Vector2.new(pos.X, pos.Y) - Vector2.new(mouse.X, mouse.Y)).Magnitude
+            if magnitude < shortestDistance then
+                closestPlayer = player
+                shortestDistance = magnitude
             end
         end
     end
     return closestPlayer
 end
 
+local function createESP(player)
+    local box = Drawing.new("Square")
+    box.Color = ESP_COLOR
+    box.Thickness = 2
+    box.Transparency = 1
+    box.Filled = false
+    ESP_OBJECTS[player] = box
+end
+
+local function removeESP(player)
+    if ESP_OBJECTS[player] then
+        ESP_OBJECTS[player]:Remove()
+        ESP_OBJECTS[player] = nil
+    end
+end
+
+-- Listeners
 RunService.RenderStepped:Connect(function()
-    if aimbotEnabled then
+    -- Aimbot
+    if AIMBOT_ENABLED and shooting then
         local target = getClosestPlayer()
         if target and target.Character and target.Character:FindFirstChild("Head") then
-            camera.CFrame = CFrame.new(camera.CFrame.Position, target.Character.Head.Position)
+            if target.Team ~= LocalPlayer.Team then
+                camera.CFrame = CFrame.new(camera.CFrame.Position, target.Character.Head.Position)
+            end
         end
     end
-end)
 
--- Funções ESP
-RunService.RenderStepped:Connect(function()
-    if not espEnabled then
-        for _, v in pairs(ESP_OBJECTS) do
-            v.Box.Visible = false
-            v.Text.Visible = false
-        end
-        return
-    end
-
-    for _, plr in pairs(game.Players:GetPlayers()) do
-        if plr ~= player and plr.Character and plr.Character:FindFirstChild("Head") then
-            local humanoid = plr.Character:FindFirstChildOfClass("Humanoid")
-            if humanoid and humanoid.Health > 0 then
-                if not ESP_OBJECTS[plr] then
-                    local box = Drawing.new("Square")
-                    box.Color = Color3.fromRGB(0, 255, 255)
-                    box.Thickness = 2
-                    box.Filled = false
-
-                    local healthText = Drawing.new("Text")
-                    healthText.Color = Color3.fromRGB(0, 255, 0)
-                    healthText.Size = 16
-                    healthText.Center = true
-                    healthText.Outline = true
-
-                    ESP_OBJECTS[plr] = {Box = box, Text = healthText}
-                end
-
-                local pos, onScreen = camera:WorldToViewportPoint(plr.Character.Head.Position)
-                local size = (camera:WorldToViewportPoint(plr.Character.Head.Position + Vector3.new(2,3,0)) - camera:WorldToViewportPoint(plr.Character.Head.Position - Vector3.new(2,3,0))).Magnitude
-
-                local obj = ESP_OBJECTS[plr]
-                obj.Box.Size = Vector2.new(size, size * 1.5)
-                obj.Box.Position = Vector2.new(pos.X - size/2, pos.Y - size * 1.5 / 2)
-                obj.Box.Visible = onScreen
-                obj.Text.Position = Vector2.new(pos.X, pos.Y - size)
-                obj.Text.Text = math.floor(humanoid.Health) .. " HP"
-                obj.Text.Visible = onScreen
+    -- ESP
+    if not ESP_ENABLED then
+        for _, box in pairs(ESP_OBJECTS) do box.Visible = false end
+    else
+        for _, player in pairs(Players:GetPlayers()) do
+            if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("Head") then
+                if not ESP_OBJECTS[player] then createESP(player) end
+                local head = player.Character.Head
+                local pos, visible = camera:WorldToViewportPoint(head.Position)
+                local size = (camera:WorldToViewportPoint(head.Position + Vector3.new(2, 3, 0)) - camera:WorldToViewportPoint(head.Position - Vector3.new(2, 3, 0))).Magnitude
+                local box = ESP_OBJECTS[player]
+                box.Size = Vector2.new(size, size * 1.5)
+                box.Position = Vector2.new(pos.X - box.Size.X/2, pos.Y - box.Size.Y/2)
+                box.Color = ESP_COLOR
+                box.Visible = visible
             else
-                if ESP_OBJECTS[plr] then
-                    ESP_OBJECTS[plr].Box:Remove()
-                    ESP_OBJECTS[plr].Text:Remove()
-                    ESP_OBJECTS[plr] = nil
-                end
+                removeESP(player)
             end
         end
     end
 end)
 
--- Função Wallhack
+local snowCircle
 RunService.RenderStepped:Connect(function()
-    if wallhackEnabled then
-        if player.Character then
-            for _, part in ipairs(player.Character:GetDescendants()) do
-                if part:IsA("BasePart") then
-                    part.CanCollide = false
-                end
+    if SNOW_FOV then
+        if not snowCircle then
+            snowCircle = Drawing.new("Circle")
+            snowCircle.Color = Color3.fromRGB(200, 200, 255)
+            snowCircle.Thickness = 1.5
+            snowCircle.Radius = FOV_RADIUS
+            snowCircle.Transparency = 0.6
+            snowCircle.Filled = false
+        end
+        local mouse = LocalPlayer:GetMouse()
+        snowCircle.Position = Vector2.new(mouse.X, mouse.Y)
+        snowCircle.Radius = FOV_RADIUS
+        snowCircle.Visible = true
+    elseif snowCircle then
+        snowCircle.Visible = false
+    end
+end)
+
+RunService.Stepped:Connect(function()
+    if noclip and LocalPlayer.Character then
+        for _, part in pairs(LocalPlayer.Character:GetDescendants()) do
+            if part:IsA("BasePart") and part.CanCollide == true then
+                part.CanCollide = false
             end
         end
     end
 end)
-
--- Silent Aim (Bala Mágica)
-local oldIndex
-oldIndex = hookmetamethod(game, "__index", function(self, key)
-    if magicBulletEnabled and tostring(self) == "Humanoid" and key == "Health" then
-        return math.huge
-    end
-    return oldIndex(self, key)
-end)
-
--- Definindo a chave para acesso
-local key = "9M"
 
 -- Criar a janela principal do menu
 local Window = OrionLib:MakeWindow({
@@ -131,99 +125,61 @@ local Window = OrionLib:MakeWindow({
     Icon = "rbxassetid://4483345998"
 })
 
--- Função de Key
-local KeyFrame = Instance.new("Frame")
-KeyFrame.Parent = game.CoreGui
-KeyFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
-KeyFrame.Position = UDim2.new(0.35, 0, 0.35, 0)
-KeyFrame.Size = UDim2.new(0, 300, 0, 200)
+-- Criar a aba principal do menu
+local Tab = Window:MakeTab({
+    Name = "Menu",
+    Icon = "rbxassetid://4483345998",
+    PremiumOnly = false
+})
 
-local TextBox = Instance.new("TextBox")
-TextBox.Parent = KeyFrame
-TextBox.PlaceholderText = "Digite a key aqui"
-TextBox.Text = ""
-TextBox.Size = UDim2.new(0, 200, 0, 40)
-TextBox.Position = UDim2.new(0.15, 0, 0.2, 0)
-TextBox.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
-TextBox.TextColor3 = Color3.fromRGB(255, 255, 255)
-TextBox.Font = Enum.Font.SourceSans
-TextBox.TextScaled = true
+local Section = Tab:AddSection({
+    Name = "Recursos"
+})
 
-local SubmitButton = Instance.new("TextButton")
-SubmitButton.Parent = KeyFrame
-SubmitButton.Text = "Entrar"
-SubmitButton.Size = UDim2.new(0, 150, 0, 40)
-SubmitButton.Position = UDim2.new(0.25, 0, 0.6, 0)
-SubmitButton.BackgroundColor3 = Color3.fromRGB(50, 150, 50)
-SubmitButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-SubmitButton.Font = Enum.Font.SourceSans
-SubmitButton.TextScaled = true
-
-SubmitButton.MouseButton1Click:Connect(function()
-    if TextBox.Text == key then
-        KeyFrame.Visible = false
-
-        local Tab = Window:MakeTab({
-            Name = "Recursos",
-            Icon = "rbxassetid://4483345998",
-            PremiumOnly = false
+Section:AddButton({
+    Name = "Ativar Aimbot",
+    Callback = function()
+        AIMBOT_ENABLED = not AIMBOT_ENABLED
+        OrionLib:MakeNotification({
+            Name = "Aimbot",
+            Content = AIMBOT_ENABLED and "Aimbot Ativado" or "Aimbot Desativado",
+            Time = 3
         })
-
-        local Section = Tab:AddSection({
-            Name = "Ferramentas"
-        })
-
-        Section:AddButton({
-            Name = "Ativar Aimbot",
-            Callback = function()
-                aimbotEnabled = not aimbotEnabled
-                OrionLib:MakeNotification({
-                    Name = "Aimbot",
-                    Content = aimbotEnabled and "Aimbot Ativado" or "Aimbot Desativado",
-                    Time = 3
-                })
-            end
-        })
-
-        Section:AddButton({
-            Name = "Ativar ESP",
-            Callback = function()
-                espEnabled = not espEnabled
-                OrionLib:MakeNotification({
-                    Name = "ESP",
-                    Content = espEnabled and "ESP Ativado" or "ESP Desativado",
-                    Time = 3
-                })
-            end
-        })
-
-        Section:AddButton({
-            Name = "Ativar Silent Aim",
-            Callback = function()
-                magicBulletEnabled = not magicBulletEnabled
-                OrionLib:MakeNotification({
-                    Name = "Silent Aim",
-                    Content = magicBulletEnabled and "Bala mágica Ativada" or "Bala mágica Desativada",
-                    Time = 3
-                })
-            end
-        })
-
-        Section:AddButton({
-            Name = "Ativar Wallhack",
-            Callback = function()
-                wallhackEnabled = not wallhackEnabled
-                OrionLib:MakeNotification({
-                    Name = "Wallhack",
-                    Content = wallhackEnabled and "Wallhack Ativado" or "Wallhack Desativado",
-                    Time = 3
-                })
-            end
-        })
-
-        Window:Show()
-    else
-        TextBox.Text = ""
-        TextBox.PlaceholderText = "Key incorreta!"
     end
-end)
+})
+
+Section:AddButton({
+    Name = "Ativar ESP",
+    Callback = function()
+        ESP_ENABLED = not ESP_ENABLED
+        OrionLib:MakeNotification({
+            Name = "ESP",
+            Content = ESP_ENABLED and "ESP Ativado" or "ESP Desativado",
+            Time = 3
+        })
+    end
+})
+
+Section:AddButton({
+    Name = "Ativar Silent Aim",
+    Callback = function()
+        shooting = not shooting
+        OrionLib:MakeNotification({
+            Name = "Silent Aim",
+            Content = shooting and "Silent Aim Ativado" or "Silent Aim Desativado",
+            Time = 3
+        })
+    end
+})
+
+Section:AddButton({
+    Name = "Ativar Wallhack (NoClip)",
+    Callback = function()
+        noclip = not noclip
+        OrionLib:MakeNotification({
+            Name = "Wallhack",
+            Content = noclip and "Wallhack Ativado" or "Wallhack Desativado",
+            Time = 3
+        })
+    end
+})
