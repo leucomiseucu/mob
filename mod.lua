@@ -11,16 +11,16 @@ repeat wait() until LocalPlayer:FindFirstChild("PlayerGui")
 local ESP_ENABLED = false
 local AIMBOT_ENABLED = false
 local SNOW_FOV = false
-local ESP_COLOR = Color3.fromRGB(0, 255, 255)
-local ESP_OBJECTS = {}
-local FOV_RADIUS = 80
 local noclip = false
 local shooting = false
+local MAGIC_BULLET = false
+local FOV_RADIUS = 80
+local ESP_COLOR = Color3.fromRGB(0, 255, 255)
+local ESP_OBJECTS = {}
 local menuGui
 local minimizedGui
 local dragging, dragInput, dragStart, startPos
 local snowCircle
-local magicBullet = false
 
 -- FUNÇÕES
 local function getClosestPlayer()
@@ -53,16 +53,26 @@ RunService.RenderStepped:Connect(function()
     end
 end)
 
--- MAGIC BULLET (universal)
-RunService.RenderStepped:Connect(function()
-    if magicBullet then
-        for _, obj in ipairs(workspace:GetDescendants()) do
-            if obj:IsA("BasePart") and not obj:IsDescendantOf(LocalPlayer.Character) then
-                obj.CanCollide = false
+-- MAGIC BULLET
+local function magicBullet()
+    local mouse = LocalPlayer:GetMouse()
+    mouse.Button1Down:Connect(function()
+        if MAGIC_BULLET then
+            local target = getClosestPlayer()
+            if target and target.Character and target.Character:FindFirstChild("Head") then
+                local tool = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Tool")
+                if tool then
+                    for _,v in pairs(tool:GetDescendants()) do
+                        if v:IsA("RemoteEvent") then
+                            v:FireServer(target.Character.Head.Position)
+                        end
+                    end
+                end
             end
         end
-    end
-end)
+    end)
+end
+magicBullet()
 
 -- ESP
 local function createESP(player)
@@ -126,7 +136,7 @@ RunService.RenderStepped:Connect(function()
     end
 end)
 
--- FOV VISUAL
+-- SNOW FOV
 RunService.RenderStepped:Connect(function()
     if SNOW_FOV then
         if not snowCircle then
@@ -156,7 +166,7 @@ RunService.Stepped:Connect(function()
     end
 end)
 
--- FUNÇÃO DRAGGABLE
+-- DRAGGABLE
 local function makeDraggable(frame)
     frame.InputBegan:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
@@ -187,13 +197,14 @@ end
 
 -- MENU
 local function createMenu()
-    menuGui = Instance.new("ScreenGui", LocalPlayer.PlayerGui)
+    menuGui = Instance.new("ScreenGui")
     menuGui.Name = "FuturisticMenu"
     menuGui.ResetOnSpawn = false
+    menuGui.Parent = LocalPlayer.PlayerGui
 
     local panel = Instance.new("Frame", menuGui)
-    panel.Size = UDim2.new(0, 300, 0, 540)
-    panel.Position = UDim2.new(0.5, -150, 0.5, -270)
+    panel.Size = UDim2.new(0, 300, 0, 500)
+    panel.Position = UDim2.new(0.5, -150, 0.5, -250)
     panel.BackgroundColor3 = Color3.fromRGB(10, 10, 20)
     panel.BackgroundTransparency = 0.1
     panel.BorderSizePixel = 0
@@ -203,35 +214,10 @@ local function createMenu()
 
     local stroke = Instance.new("UIStroke", panel)
     stroke.Thickness = 2
-
     RunService.RenderStepped:Connect(function()
         local t = tick() * 100
         stroke.Color = Color3.fromHSV((t % 255) / 255, 1, 1)
     end)
-
-    local minimizeButton = Instance.new("TextButton", panel)
-    minimizeButton.Size = UDim2.new(0, 40, 0, 40)
-    minimizeButton.Position = UDim2.new(1, -50, 0, 10)
-    minimizeButton.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
-    minimizeButton.Text = "_"
-    minimizeButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-    minimizeButton.Font = Enum.Font.GothamBold
-    minimizeButton.TextSize = 22
-    Instance.new("UICorner", minimizeButton).CornerRadius = UDim.new(0, 8)
-
-    minimizeButton.MouseButton1Click:Connect(function()
-        menuGui.Enabled = false
-        minimizedGui.Enabled = true
-    end)
-
-    local title = Instance.new("TextLabel", panel)
-    title.Size = UDim2.new(1, 0, 0, 50)
-    title.Position = UDim2.new(0, 0, 0, 0)
-    title.BackgroundTransparency = 1
-    title.Text = "☣ CEIFADOR V2 ☣"
-    title.TextColor3 = Color3.fromRGB(0, 255, 200)
-    title.Font = Enum.Font.SciFi
-    title.TextSize = 28
 
     local function addButton(text, posY, callback)
         local button = Instance.new("TextButton", panel)
@@ -247,49 +233,32 @@ local function createMenu()
         button.MouseButton1Click:Connect(callback)
     end
 
-    addButton("ESP", 70, function() ESP_ENABLED = not ESP_ENABLED end)
-    addButton("AIMBOT", 140, function() AIMBOT_ENABLED = not AIMBOT_ENABLED end)
-    addButton("SNOW FOV", 210, function() SNOW_FOV = not SNOW_FOV end)
-    addButton("NOCLIP", 280, function() noclip = not noclip end)
-    addButton("AUMENTAR FOV", 350, function() FOV_RADIUS = FOV_RADIUS + 10 end)
-    addButton("BALA MAGICA", 420, function() magicBullet = not magicBullet end)
-end
-
-local function createMinimizedGui()
-    minimizedGui = Instance.new("ScreenGui", LocalPlayer.PlayerGui)
-    minimizedGui.Name = "MinimizedMenu"
-    minimizedGui.Enabled = false
-
-    local bar = Instance.new("TextButton", minimizedGui)
-    bar.Size = UDim2.new(0, 80, 0, 30)
-    bar.Position = UDim2.new(0.5, -40, 0.5, -15)
-    bar.BackgroundColor3 = Color3.fromRGB(40, 0, 80)
-    bar.Text = "+"
-    bar.TextColor3 = Color3.fromRGB(255, 255, 255)
-    bar.Font = Enum.Font.GothamBold
-    bar.TextSize = 24
-
-    Instance.new("UICorner", bar).CornerRadius = UDim.new(0, 10)
-
-    makeDraggable(bar)
-
-    bar.MouseButton1Click:Connect(function()
-        minimizedGui.Enabled = false
-        menuGui.Enabled = true
+    addButton("ESP", 70, function()
+        ESP_ENABLED = not ESP_ENABLED
+    end)
+    addButton("AIMBOT", 140, function()
+        AIMBOT_ENABLED = not AIMBOT_ENABLED
+    end)
+    addButton("SNOW FOV", 210, function()
+        SNOW_FOV = not SNOW_FOV
+    end)
+    addButton("NOCLIP", 280, function()
+        noclip = not noclip
+    end)
+    addButton("BALA MÁGICA", 350, function()
+        MAGIC_BULLET = not MAGIC_BULLET
+    end)
+    addButton("AUMENTAR FOV", 420, function()
+        FOV_RADIUS = FOV_RADIUS + 10
     end)
 end
 
--- INICIAR MENU
-defer(function()
-    createMenu()
-    createMinimizedGui()
-end)
+createMenu()
 
--- SHOOTING MOBILE
+-- MOBILE SHOOTING
 UserInputService.TouchStarted:Connect(function()
     shooting = true
 end)
-
 UserInputService.TouchEnded:Connect(function()
     shooting = false
 end)
