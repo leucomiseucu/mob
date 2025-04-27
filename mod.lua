@@ -7,7 +7,7 @@ local camera = workspace.CurrentCamera
 
 repeat wait() until LocalPlayer:FindFirstChild("PlayerGui")
 
--- Variáveis globais
+-- Variáveis
 local ESP_ENABLED = false
 local AIMBOT_ENABLED = false
 local SNOW_FOV = false
@@ -28,8 +28,8 @@ local function getClosestPlayer()
         if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("Head") then
             local pos, onScreen = camera:WorldToViewportPoint(player.Character.Head.Position)
             if onScreen then
-                local mouse = LocalPlayer:GetMouse()
-                local distance = (Vector2.new(mouse.X, mouse.Y) - Vector2.new(pos.X, pos.Y)).Magnitude
+                local touch = UserInputService:GetMouseLocation()
+                local distance = (Vector2.new(touch.X, touch.Y) - Vector2.new(pos.X, pos.Y)).Magnitude
                 if distance < dist and distance <= FOV_RADIUS then
                     closest = player
                     dist = distance
@@ -40,12 +40,12 @@ local function getClosestPlayer()
     return closest
 end
 
--- Aimbot
+-- Aimbot MOBILE
 RunService.RenderStepped:Connect(function()
     if AIMBOT_ENABLED and shooting then
         local target = getClosestPlayer()
         if target and target.Character and target.Character:FindFirstChild("Head") then
-            if target.Team ~= LocalPlayer.Team then
+            if not target.Team or target.Team ~= LocalPlayer.Team then
                 camera.CFrame = CFrame.new(camera.CFrame.Position, target.Character.Head.Position)
             end
         end
@@ -124,8 +124,8 @@ RunService.RenderStepped:Connect(function()
             snowCircle.Transparency = 0.5
             snowCircle.Filled = false
         end
-        local mouse = LocalPlayer:GetMouse()
-        snowCircle.Position = Vector2.new(mouse.X, mouse.Y)
+        local touch = UserInputService:GetMouseLocation()
+        snowCircle.Position = Vector2.new(touch.X, touch.Y)
         snowCircle.Radius = FOV_RADIUS
         snowCircle.Visible = true
     elseif snowCircle then
@@ -144,10 +144,10 @@ RunService.Stepped:Connect(function()
     end
 end)
 
--- Função para fazer draggable
+-- Função para arrastar (draggable)
 local function makeDraggable(frame)
     frame.InputBegan:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        if input.UserInputType == Enum.UserInputType.Touch or input.UserInputType == Enum.UserInputType.MouseButton1 then
             dragging = true
             dragStart = input.Position
             startPos = frame.Position
@@ -160,7 +160,7 @@ local function makeDraggable(frame)
     end)
 
     frame.InputChanged:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+        if input.UserInputType == Enum.UserInputType.Touch or input.UserInputType == Enum.UserInputType.MouseMovement then
             dragInput = input
         end
     end)
@@ -173,7 +173,7 @@ local function makeDraggable(frame)
     end)
 end
 
--- Criar o Menu Futurista
+-- Menu
 local function createMenu()
     menuGui = Instance.new("ScreenGui", LocalPlayer.PlayerGui)
     menuGui.Name = "FuturisticMenu"
@@ -189,7 +189,6 @@ local function createMenu()
 
     Instance.new("UICorner", panel).CornerRadius = UDim.new(0, 15)
 
-    -- Bordas RGB
     local stroke = Instance.new("UIStroke", panel)
     stroke.Thickness = 2
 
@@ -198,7 +197,6 @@ local function createMenu()
         stroke.Color = Color3.fromHSV((t % 255) / 255, 1, 1)
     end)
 
-    -- Botão de minimizar
     local minimizeButton = Instance.new("TextButton", panel)
     minimizeButton.Size = UDim2.new(0, 40, 0, 40)
     minimizeButton.Position = UDim2.new(1, -50, 0, 10)
@@ -237,27 +235,13 @@ local function createMenu()
         button.MouseButton1Click:Connect(callback)
     end
 
-    addButton("ESP", 70, function()
-        ESP_ENABLED = not ESP_ENABLED
-    end)
+    addButton("ESP", 70, function() ESP_ENABLED = not ESP_ENABLED end)
+    addButton("AIMBOT", 140, function() AIMBOT_ENABLED = not AIMBOT_ENABLED end)
+    addButton("SNOW FOV", 210, function() SNOW_FOV = not SNOW_FOV end)
+    addButton("NOCLIP", 280, function() noclip = not noclip end)
+    addButton("AUMENTAR FOV", 350, function() FOV_RADIUS = FOV_RADIUS + 10 end)
 
-    addButton("AIMBOT", 140, function()
-        AIMBOT_ENABLED = not AIMBOT_ENABLED
-    end)
-
-    addButton("SNOW FOV", 210, function()
-        SNOW_FOV = not SNOW_FOV
-    end)
-
-    addButton("NOCLIP", 280, function()
-        noclip = not noclip
-    end)
-
-    addButton("AUMENTAR FOV", 350, function()
-        FOV_RADIUS = FOV_RADIUS + 10
-    end)
-
-    -- Color Picker
+    -- Color Picker para FOV
     local colorPickerLabel = Instance.new("TextLabel", panel)
     colorPickerLabel.Size = UDim2.new(0, 260, 0, 20)
     colorPickerLabel.Position = UDim2.new(0, 20, 0, 420)
@@ -305,7 +289,6 @@ local function createMinimizedGui()
     bar.TextColor3 = Color3.fromRGB(255, 255, 255)
     bar.Font = Enum.Font.GothamBold
     bar.TextSize = 24
-
     Instance.new("UICorner", bar).CornerRadius = UDim.new(0, 10)
 
     makeDraggable(bar)
@@ -316,15 +299,6 @@ local function createMinimizedGui()
     end)
 end
 
--- Abrir o menu diretamente
+-- Inicializar o Menu
 createMenu()
 createMinimizedGui()
-
--- Mobile shooting
-UserInputService.TouchStarted:Connect(function()
-    shooting = true
-end)
-
-UserInputService.TouchEnded:Connect(function()
-    shooting = false
-end)
